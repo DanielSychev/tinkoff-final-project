@@ -1,18 +1,19 @@
 package httpgin
 
 import (
-	"log"
+	"context"
+	"go.uber.org/zap"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"homework9/internal/app"
 )
 
-func ServiceRecovery() gin.HandlerFunc {
+func ServiceRecovery(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Printf("panic: %v", err)
+				logger.Error("panic", zap.Error(err.(error)))
 				c.AbortWithStatus(http.StatusInternalServerError)
 			}
 		}()
@@ -20,14 +21,12 @@ func ServiceRecovery() gin.HandlerFunc {
 	}
 }
 
-func NewHTTPServer(port string, a app.App) *http.Server {
+func NewHTTPServer(ctx context.Context, port string, a app.App) *http.Server {
 	gin.SetMode(gin.ReleaseMode)
 	handler := gin.New()
 	s := &http.Server{Addr: port, Handler: handler}
 
-	// todo: add your own logic
-
-	handler.Use(ServiceRecovery())
+	handler.Use(ServiceRecovery(ctx.Value("logger").(*zap.Logger)))
 	handler.POST("/api/v1/ads", func(c *gin.Context) {
 		CreateAd(c, a)
 	})

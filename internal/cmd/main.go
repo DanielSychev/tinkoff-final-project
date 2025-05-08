@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"homework9/internal/adapters/adrepo"
 	"homework9/internal/app"
+	"homework9/internal/config"
 	pb "homework9/internal/ports/grpc"
 	ser "homework9/internal/ports/grpc/service"
 	"homework9/internal/ports/httpgin"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -21,8 +22,18 @@ import (
 )
 
 func main() {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+	//logger2 := logger.Sugar()
+
+	cfg, err := config.NewConfig()
+	if err != nil {
+		logger.Fatal("config fail", zap.Error(err))
+	}
+
 	root, cancel := context.WithCancel(context.Background())
 	er, ctx := errgroup.WithContext(root)
+	ctx = context.WithValue(ctx, "logger", logger)
 
 	sigQuit := make(chan os.Signal, 1)
 	signal.Notify(sigQuit, syscall.SIGINT, syscall.SIGTERM)
@@ -30,7 +41,7 @@ func main() {
 	er.Go(func() error {
 		select {
 		case <-sigQuit:
-			log.Println("captured shutdown signal")
+			logger.Info("captured shutdown signal")
 			cancel()
 			return fmt.Errorf("interrupt signal received")
 		case <-ctx.Done():
@@ -40,7 +51,7 @@ func main() {
 
 	ap := app.NewApp(adrepo.New())
 	er.Go(func() error {
-		lis, err := net.Listen("tcp", ":8080")
+		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GrpcPort))
 		if err != nil {
 			return fmt.Errorf("failed to listen: %v", err)
 		}
@@ -70,14 +81,14 @@ func main() {
 	})
 
 	er.Go(func() error {
-		httpServer := httpgin.NewHTTPServer(":1010", ap)
+		httpServer := httpgin.NewHTTPServer(ctx, fmt.Sprintf(":%d", cfg.RestPort), ap)
 
 		errCh := make(chan error, 1)
 		defer func() {
 			ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel2()
 			if err := httpServer.Shutdown(ctx2); err != nil {
-				log.Printf("failed to shutdown http server: %v", err)
+				logger.Error("failed to shutdown http server", zap.Error(err))
 			}
 			close(errCh)
 		}()
@@ -95,8 +106,7 @@ func main() {
 	})
 
 	if err := er.Wait(); err != nil {
-		log.Printf("shutting down services:%e \n", err)
+		logger.Error("shutting down services", zap.Error(err))
 	}
-	log.Println("goodbye")
-	// first push
+	logger.Info("goodbye")
 }
