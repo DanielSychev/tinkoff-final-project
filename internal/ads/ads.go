@@ -1,14 +1,16 @@
 package ads
 
+import "time"
+
 type Ad struct {
-	ID          int64  `json:"id"`
-	Title       string `json:"title"`
-	Text        string `json:"text"`
-	AuthorID    int64  `json:"author_id"`
-	Published   bool   `json:"published"`
-	Deleted     bool   `json:"deleted"`
-	DateCreated string `json:"date_created"`
-	DateUpdated string `json:"date_updated"`
+	ID          int64     `json:"id"`
+	Title       string    `json:"title"`
+	Text        string    `json:"text"`
+	AuthorID    int64     `json:"author_id"`
+	Published   bool      `json:"published"`
+	Deleted     bool      `json:"deleted"`
+	DateCreated time.Time `json:"date_created"`
+	DateUpdated time.Time `json:"date_updated"`
 }
 
 type User struct {
