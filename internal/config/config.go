@@ -1,10 +1,14 @@
 package config
 
-import "github.com/ilyakaznacheev/cleanenv"
+import (
+	"github.com/ilyakaznacheev/cleanenv"
+	"homework9/internal/adapters/adrepo/postgres"
+)
 
 type Config struct {
-	GrpcPort int `yaml:"grpc_port" env:"GRPC_PORT"`
-	RestPort int `yaml:"rest_port" env:"REST_PORT"`
+	GrpcPort int               `env:"GRPC_PORT" envDefault:"8080"`
+	RestPort int               `env:"REST_PORT" envDefault:"8081"`
+	PgConfig postgres.PgConfig `env:"POSTGRES"`
 }
 
 func NewConfig() (*Config, error) {
