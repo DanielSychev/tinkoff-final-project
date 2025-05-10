@@ -2,6 +2,7 @@ package adrepo
 
 import (
 	"errors"
+	"github.com/jackc/pgx/v5"
 	"homework9/internal/ads"
 	"homework9/internal/app"
 	"sync"
@@ -19,6 +20,7 @@ type Repo struct {
 	users      []ads.User
 	usersIndex int64
 	mu         *sync.Mutex
+	conn       *pgx.Conn
 }
 
 func validate(Title string, Text string) bool {
