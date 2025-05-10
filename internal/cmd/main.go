@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"homework9/internal/adapters/adrepo"
+	"homework9/internal/adapters/adrepo/postgres"
 	"homework9/internal/app"
 	"homework9/internal/config"
 	pb "homework9/internal/ports/grpc"
@@ -49,7 +50,13 @@ func main() {
 		}
 	})
 
-	ap := app.NewApp(adrepo.New())
+	conn, err := postgres.New(ctx, cfg.PgConfig)
+	defer conn.Close(ctx)
+	if err != nil {
+		logger.Fatal("failed to connect to postgres", zap.Error(err))
+	}
+	ap := app.NewApp(adrepo.New(ctx, conn))
+
 	er.Go(func() error {
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GrpcPort))
 		if err != nil {

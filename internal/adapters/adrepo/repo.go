@@ -1,12 +1,13 @@
 package adrepo
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"github.com/jackc/pgx/v5"
 	"homework9/internal/ads"
 	"homework9/internal/app"
 	"sync"
-	"time"
 )
 
 var ErrNotAuthor = errors.New("not author")
@@ -14,13 +15,21 @@ var ErrValidate = errors.New("validation error")
 var ErrNotCreated = errors.New("not created")
 var ErrWasDeleted = errors.New("has been already deleted")
 
+const insertAdd = "INSERT INTO adds(title, text, author_id) VALUES($1, $2, $3) RETURNING *"
+const selectAuthorId = "SELECT author_id FROM adds WHERE id = $1"
+const selectAdd = "SELECT * FROM adds WHERE id = $1"
+const updateAddPublished = "UPDATE adds SET published = $2 WHERE id = $1 RETURNING *"
+const updateTextAndTitle = "UPDATE adds SET title = $2, text = $3 WHERE id = $1 RETURNING *"
+const deleteAdd = "DELETE FROM adds WHERE id = $1"
+
+const insertUser = "INSERT INTO users(name) VALUES($1) RETURNING *"
+const selectUser = "SELECT * FROM users WHERE id = $1"
+const deleteUser = "DELETE FROM users WHERE id = $1"
+
 type Repo struct {
-	index      int64
-	a          []ads.Ad
-	users      []ads.User
-	usersIndex int64
-	mu         *sync.Mutex
-	conn       *pgx.Conn
+	mu   *sync.Mutex
+	conn *pgx.Conn
+	ctx  context.Context
 }
 
 func validate(Title string, Text string) bool {
@@ -33,63 +42,87 @@ func (r *Repo) Create(Title string, Text string, UserID int64) (*ads.Ad, error) 
 	if !validate(Title, Text) {
 		return nil, ErrValidate
 	}
-	r.a = append(r.a, ads.Ad{
-		ID:          r.index,
-		Title:       Title,
-		Text:        Text,
-		AuthorID:    UserID,
-		Published:   false,
-		DateCreated: time.Now().Format("2006-01-02 15:04:05"),
-		DateUpdated: time.Now().Format("2006-01-02 15:04:05"),
-	})
-	r.index++
-	return &r.a[r.index-1], nil
+	ad := &ads.Ad{}
+	err := r.conn.QueryRow(r.ctx, insertAdd, Title, Text, UserID).Scan(
+		&ad.ID, &ad.Title, &ad.Text, &ad.AuthorID,
+		&ad.Published, &ad.DateCreated, &ad.DateUpdated,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create ad: %w", err)
+	}
+	return ad, nil
 }
 
 func (r *Repo) UpdatePublished(ID int64, UserID int64, Published bool) (*ads.Ad, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.a[ID].AuthorID != UserID {
+	var auId int64
+	err := r.conn.QueryRow(r.ctx, selectAuthorId, ID).Scan(&auId)
+	if err != nil {
+		return nil, fmt.Errorf("unable to select with such id: %w", err)
+	}
+	if auId != UserID {
 		return nil, ErrNotAuthor
 	}
-	r.a[ID].Published = Published
-	r.a[ID].DateUpdated = time.Now().Format("2006-01-02 15:04:05")
-	return &r.a[ID], nil
+	ad := &ads.Ad{}
+	err = r.conn.QueryRow(r.ctx, updateAddPublished, ID, Published).Scan(
+		&ad.ID, &ad.Title, &ad.Text, &ad.AuthorID,
+		&ad.Published, &ad.DateCreated, &ad.DateUpdated,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("unable to update published ad: %w", err)
+	}
+	return ad, nil
 }
 
 func (r *Repo) UpdateTextAndTitle(ID int64, UserID int64, Title string, Text string) (*ads.Ad, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.a[ID].AuthorID != UserID {
-		return nil, ErrNotAuthor
-	}
 	if !validate(Title, Text) {
 		return nil, ErrValidate
 	}
-	r.a[ID].Text = Text
-	r.a[ID].Title = Title
-	r.a[ID].DateUpdated = time.Now().Format("2006-01-02 15:04:05")
-	return &r.a[ID], nil
+	var auId int64
+	err := r.conn.QueryRow(r.ctx, selectAuthorId, ID).Scan(&auId)
+	if err != nil {
+		return nil, fmt.Errorf("unable to select with such id: %w", err)
+	}
+	if auId != UserID {
+		return nil, ErrNotAuthor
+	}
+	ad := &ads.Ad{}
+	err = r.conn.QueryRow(r.ctx, updateTextAndTitle, ID, Title, Text).Scan(
+		&ad.ID, &ad.Title, &ad.Text, &ad.AuthorID,
+		&ad.Published, &ad.DateCreated, &ad.DateUpdated,
+	)
+	return ad, nil
 }
 
 func (r *Repo) GetList(filter ads.AdFilter) ([]*ads.Ad, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var res = make([]*ads.Ad, 0)
-	for _, elem := range r.a {
-		if elem.Deleted {
+	var i = 1
+	fmt.Println("here")
+	for {
+		ad := &ads.Ad{}
+		err := r.conn.QueryRow(r.ctx, selectAdd, i).Scan(
+			&ad.ID, &ad.Title, &ad.Text, &ad.AuthorID,
+			&ad.Published, &ad.DateCreated, &ad.DateUpdated,
+		)
+		i += 1
+		if err != nil {
+			break
+		}
+		if filter.Pub && !ad.Published {
 			continue
 		}
-		if filter.Pub && !elem.Published {
+		if filter.Auth != -1 && ad.AuthorID != filter.Auth {
 			continue
 		}
-		if filter.Auth != -1 && elem.AuthorID != filter.Auth {
+		if filter.Title != "" && ad.Title != filter.Title {
 			continue
 		}
-		if filter.Title != "" && elem.Title != filter.Title {
-			continue
-		}
-		res = append(res, &elem)
+		res = append(res, ad)
 	}
 	return res, nil
 }
@@ -97,64 +130,62 @@ func (r *Repo) GetList(filter ads.AdFilter) ([]*ads.Ad, error) {
 func (r *Repo) GetByID(ID int64) (*ads.Ad, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if ID >= r.index {
+	ad := &ads.Ad{}
+	err := r.conn.QueryRow(r.ctx, selectAdd, ID).Scan(
+		&ad.ID, &ad.Title, &ad.Text, &ad.AuthorID,
+		&ad.Published, &ad.DateCreated, &ad.DateUpdated,
+	)
+	if err != nil {
 		return nil, ErrNotCreated
 	}
-	if r.a[ID].Deleted {
-		return nil, ErrWasDeleted
-	}
-	return &r.a[ID], nil
+	return ad, nil
 }
 
 func (r *Repo) DeleteAd(ID int64, UserID int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if ID >= r.index {
+	var auId int64
+	err := r.conn.QueryRow(r.ctx, selectAuthorId, ID).Scan(&auId)
+	if err != nil {
 		return ErrNotCreated
 	}
-	if r.a[ID].AuthorID != UserID {
+	if auId != UserID {
 		return ErrNotAuthor
 	}
-	if r.a[ID].Deleted {
-		return ErrWasDeleted
+	_, err = r.conn.Exec(r.ctx, deleteAdd, ID)
+	if err != nil {
+		return fmt.Errorf("unable to delete ad: %w", err)
 	}
-	r.a[ID].Deleted = true
 	return nil
 }
 
 func (r *Repo) CreateUser(Name string) (*ads.User, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.users = append(r.users, ads.User{Name: Name, ID: r.usersIndex})
-	r.usersIndex++
-	return &r.users[r.usersIndex-1], nil
+	user := &ads.User{}
+	r.conn.QueryRow(r.ctx, insertUser, Name).Scan(&user.ID, &user.Name)
+	return user, nil
 }
 
 func (r *Repo) GetUser(ID int64) (*ads.User, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if ID >= r.usersIndex {
+	user := &ads.User{}
+	if err := r.conn.QueryRow(r.ctx, selectUser, ID).Scan(&user.ID, &user.Name); err != nil {
 		return nil, ErrNotCreated
 	}
-	if r.users[ID].Deleted {
-		return nil, ErrWasDeleted
-	}
-	return &r.users[ID], nil
+	return user, nil
 }
 
 func (r *Repo) DeleteUser(ID int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if ID >= r.usersIndex {
+	if _, err := r.conn.Exec(r.ctx, deleteUser, ID); err != nil {
 		return ErrNotCreated
 	}
-	if r.users[ID].Deleted {
-		return ErrWasDeleted
-	}
-	r.users[ID].Deleted = true
 	return nil
 }
 
-func New() app.Repository {
-	return &Repo{index: 0, a: []ads.Ad{}, mu: new(sync.Mutex), users: []ads.User{}, usersIndex: 0}
+func New(ctx context.Context, conn *pgx.Conn) app.Repository {
+	return &Repo{ctx: ctx, conn: conn, mu: new(sync.Mutex)}
 }
