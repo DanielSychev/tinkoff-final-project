@@ -53,8 +53,8 @@ func AdSuccessResponse(ad *ads.Ad) gin.H {
 			Text:        ad.Text,
 			AuthorID:    ad.AuthorID,
 			Published:   ad.Published,
-			DateCreated: ad.DateCreated,
-			DateUpdated: ad.DateUpdated,
+			DateCreated: ad.DateCreated.Format("2006-01-02 15:04:05"),
+			DateUpdated: ad.DateUpdated.Format("2006-01-02 15:04:05"),
 		},
 		"error": nil,
 	}
@@ -79,8 +79,8 @@ func AdListSuccessResponse(ad []*ads.Ad) gin.H {
 			Text:        ad[i].Text,
 			AuthorID:    ad[i].AuthorID,
 			Published:   ad[i].Published,
-			DateCreated: ad[i].DateCreated,
-			DateUpdated: ad[i].DateUpdated,
+			DateCreated: ad[i].DateCreated.Format("2006-01-02 15:04:05"),
+			DateUpdated: ad[i].DateUpdated.Format("2006-01-02 15:04:05"),
 		}
 	}
 	return gin.H{

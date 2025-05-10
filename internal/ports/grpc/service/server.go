@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"homework9/internal/adapters/adrepo"
 	"homework9/internal/ads"
 	"homework9/internal/app"
 	"homework9/internal/ports/grpc"
@@ -16,10 +15,6 @@ type MyServer struct {
 
 func NewMyServer(ap app.App) *MyServer {
 	return &MyServer{a: ap}
-}
-
-func NewService() *MyServer {
-	return &MyServer{a: app.NewApp(adrepo.New())}
 }
 
 func (s *MyServer) CreateAd(c context.Context, adReq *grpc.CreateAdRequest) (*grpc.AdResponse, error) {

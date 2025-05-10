@@ -12,8 +12,8 @@ func ToAdResponse(a *ads.Ad) *grpc.AdResponse {
 		Text:        a.Text,
 		AuthorId:    a.AuthorID,
 		Published:   a.Published,
-		DateCreated: a.DateCreated,
-		DateUpdated: a.DateUpdated,
+		DateCreated: a.DateCreated.Format("2006-01-02 15:04:05"),
+		DateUpdated: a.DateUpdated.Format("2006-01-02 15:04:05"),
 	}
 }
 
