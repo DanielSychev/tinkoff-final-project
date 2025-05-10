@@ -1,4 +1,4 @@
-create table adds (
+create table if not exists adds (
     id serial primary key,
     title varchar(100) not null,
     text varchar(500) not null,
@@ -16,7 +16,7 @@ begin
 end;
 $$ language plpgsql;
 
-create trigger trigger_update_adds_timestamp
+create or replace trigger trigger_update_adds_timestamp
     before update on adds
     for each row
 execute function update_adds_timestamp();

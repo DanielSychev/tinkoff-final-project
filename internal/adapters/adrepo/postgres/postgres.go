@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres" // Добавьте этот импорт
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -17,13 +19,14 @@ type PgConfig struct {
 }
 
 func New(ctx context.Context, cfg PgConfig) (*pgx.Conn, error) {
-	dbUrl := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s",
+	dbUrl := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
 		cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.Database)
 	conn, err := pgx.Connect(ctx, dbUrl)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to database: %w", err)
 	}
-	m, err := migrate.New("file://migrations", dbUrl)
+	migrationPath := "file://internal/adapters/adrepo/migrations"
+	m, err := migrate.New(migrationPath, dbUrl)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create migrations: %w", err)
 	}
