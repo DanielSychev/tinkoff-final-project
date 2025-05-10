@@ -2,8 +2,10 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -40,7 +42,9 @@ type testClient struct {
 }
 
 func getTestClient() *testClient {
-	server := httpgin.NewHTTPServer(":18080", app.NewApp(adrepo.New()))
+	logger, _ := zap.NewProduction()
+	ctx := context.WithValue(context.Background(), "logger", logger)
+	server := httpgin.NewHTTPServer(ctx, ":18080", app.NewApp(adrepo.New()))
 	testServer := httptest.NewServer(server.Handler)
 
 	return &testClient{
