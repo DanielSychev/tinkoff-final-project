@@ -19,7 +19,7 @@ type PgConfig struct {
 }
 
 func New(ctx context.Context, cfg PgConfig) (*pgx.Conn, error) {
-	dbUrl := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
+	dbUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.Database)
 	conn, err := pgx.Connect(ctx, dbUrl)
 	if err != nil {
