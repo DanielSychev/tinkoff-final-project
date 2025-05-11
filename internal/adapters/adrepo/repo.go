@@ -102,7 +102,6 @@ func (r *Repo) GetList(filter ads.AdFilter) ([]*ads.Ad, error) {
 	defer r.mu.Unlock()
 	var res = make([]*ads.Ad, 0)
 	var i = 1
-	fmt.Println("here")
 	for {
 		ad := &ads.Ad{}
 		err := r.conn.QueryRow(r.ctx, selectAdd, i).Scan(
