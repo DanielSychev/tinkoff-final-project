@@ -2,25 +2,19 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:latest
     container_name: postgres  # Явно задаем имя контейнера
     environment:
-      POSTGRES_USER: mac
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 1234
       POSTGRES_DB: postgres
-      POSTGRES_HOST: localhost
     ports:
-      - "5432:5432"
+      - "5435:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-#      - ./internal/adapters/adrepo/migrations:/docker-entrypoint-initdb.d
-#    healthcheck:
-#      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
-#      interval: 5s
-#      timeout: 5s
-#      retries: 5
 
   app:
+    container_name: add_service
     build:
       context: .
       dockerfile: Dockerfile
@@ -28,6 +22,8 @@ services:
       - "8081:8081"  # HTTP порт
       - "1011:1011"  # gRPC порт
     restart: on-failure
+    depends_on:
+      - postgres
 
 volumes:
   postgres_data:  # Объявляем том, который использует postgres
